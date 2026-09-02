@@ -2,6 +2,7 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <DHT.h>
+#include <secrets.h>
 
 #define DHTPIN 4
 #define DHTTYPE DHT22
@@ -12,15 +13,15 @@
 #define ECHO_PIN 19
 #define RELAY_PIN 23
 
-const char* WIFI_SSID = "YOUR_WIFI_SSID";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+const char* WIFI_SSID = WIFI_SSID;
+const char* WIFI_PASSWORD = WIFI_PASSWORD;
 
-const char* OWM_API_KEY = "YOUR_OPENWEATHERMAP_API_KEY";
+const char* OWM_API_KEY = OWM_API_KEY;
 const char* OWM_LAT = "12.97";
 const char* OWM_LON = "79.15";
 
-const char* TB_SERVER = "https://demo.thingsboard.io";
-const char* TB_TOKEN = "YOUR_THINGSBOARD_DEVICE_TOKEN";
+const char* TB_SERVER = TB_SERVER;
+const char* TB_TOKEN = TB_TOKEN;
 
 const float RESERVOIR_HEIGHT_CM = 30.0;
 const float SAFETY_RESERVOIR_PCT = 10.0;
