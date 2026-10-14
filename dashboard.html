@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Irrigation</title>
+<style>
+:root{--bg:#0d1511;--card:#16211b;--line:#25352c;--txt:#e7f1ea;--mut:#8ba297;--ok:#3ddc84;--bad:#ff6363;--warn:#ffb74d;--acc:#4fc3f7}
+@media (prefers-color-scheme:light){:root{--bg:#eef4f0;--card:#fff;--line:#d9e5dd;--txt:#14221a;--mut:#5d7568;--ok:#16a34a;--bad:#dc2626;--warn:#d97706;--acc:#0284c7}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;max-width:1100px;margin:auto}
+h1{font-size:18px;margin:0;font-weight:650}
+#conn{font-size:13px;color:var(--mut);display:flex;align-items:center;gap:8px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--mut)}
+.dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}.dot.off{background:var(--bad)}
+main{max-width:1100px;margin:auto;padding:0 20px 40px;display:grid;gap:16px;grid-template-columns:repeat(12,1fr)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
+.card h2{margin:0 0 12px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:600}
+.hero{grid-column:span 12;display:flex;gap:20px;align-items:center;border-width:2px}
+.hero.on{border-color:var(--ok)}.hero.off{border-color:var(--bad)}.hero.wait{border-color:var(--line)}
+.badge{min-width:130px;text-align:center;padding:16px 10px;border-radius:14px;font-weight:800;font-size:26px;letter-spacing:.04em}
+.on .badge{background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+.off .badge{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
+.wait .badge{background:var(--line);color:var(--mut)}
+.badge small{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;opacity:.8}
+#reason{font-size:18px;font-weight:550}
+#fw,#ago{color:var(--mut);font-size:13px;margin-top:6px}
+#warn{display:none;grid-column:span 12;background:color-mix(in srgb,var(--warn) 15%,transparent);border:1px solid var(--warn);color:var(--warn);padding:10px 16px;border-radius:12px}
+.c7{grid-column:span 7}.c5{grid-column:span 5}.c12{grid-column:span 12}
+.row{display:grid;grid-template-columns:26px 1fr auto;gap:2px 10px;padding:10px 0;border-top:1px solid var(--line);align-items:center}
+.row:first-of-type{border-top:0}
+.ic{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;color:#fff}
+.row.ok .ic{background:var(--ok)}.row.bad .ic{background:var(--bad)}
+.row .now{font-weight:650}.row.ok .now{color:var(--ok)}.row.bad .now{color:var(--bad)}
+.row .need{grid-column:2/4;color:var(--mut);font-size:13px}
+#todo{margin-top:12px;padding:12px;border-radius:12px;background:var(--bg);font-size:14px}
+#todo b{display:block;margin-bottom:4px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.tile{background:var(--bg);border-radius:12px;padding:12px}
+.tile span{display:block;color:var(--mut);font-size:12px}
+.tile strong{font-size:24px}.tile em{font-style:normal;color:var(--mut);font-size:13px}
+.bar{height:7px;background:var(--line);border-radius:4px;margin-top:8px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--acc);width:0;transition:width .5s}
+.w-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.w-ic{font-size:44px;line-height:1}.w-t{font-size:34px;font-weight:700}
+.w-d{color:var(--mut);text-transform:capitalize}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:14px}
+.kv span{color:var(--mut)}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--mut);margin-bottom:6px;flex-wrap:wrap}
+.legend i{display:inline-block;width:12px;height:3px;margin-right:6px;vertical-align:middle;border-radius:2px}
+svg{width:100%;height:auto;display:block}
+.hv-form{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.hv-form select,.hv-form input,.hv-form button{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font:inherit}.hv-form button{cursor:pointer;font-weight:600}.hv-form #hv-save{background:var(--acc);color:#fff;border-color:var(--acc)}.bar.g i{background:var(--ok)}
+@media(max-width:800px){.c7,.c5{grid-column:span 12}.hero{flex-direction:column;align-items:stretch}.tiles{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header><h1>🌱 Smart Irrigation</h1><div id="conn"><span class="dot" id="dot"></span><span id="connt">connecting…</span></div></header>
+<main>
+  <div id="warn"></div>
+  <section class="card hero wait" id="hero">
+    <div class="badge" id="badge">WAITING<small>for ESP32</small></div>
+    <div><div id="reason">No report from the ESP32 yet.</div><div id="fw"></div><div id="ago"></div></div>
+  </section>
+
+  <section class="card c7"><h2>Why? Rule checklist</h2><div id="checks"></div><div id="todo" hidden></div></section>
+
+  <section class="card c5"><h2>Weather <span id="wplace"></span></h2><div id="weather">Loading…</div></section>
+
+  <section class="card c12"><h2>Field sensors</h2>
+    <div class="tiles">
+      <div class="tile"><span>Soil moisture</span><strong id="soil">–</strong><em>%</em><div class="bar"><i id="soilb"></i></div></div>
+      <div class="tile"><span>Water tank</span><strong id="tank">–</strong><em>%</em><div class="bar"><i id="tankb"></i></div></div>
+      <div class="tile"><span>Leaf wetness</span><strong id="leaf">–</strong><em>%</em><div class="bar"><i id="leafb"></i></div></div>
+      <div class="tile"><span>Temperature</span><strong id="temp">–</strong><em>°C</em></div>
+      <div class="tile"><span>Humidity</span><strong id="hum">–</strong><em>%</em></div>
+      <div class="tile"><span>Sunlight (LDR)</span><strong id="light">–</strong></div>
+    </div>
+  </section>
+
+  <section class="card c12"><h2>Watering budget</h2>
+    <div class="w-top"><div class="w-ic">💧</div><div><div class="w-t" id="wt-txt" style="font-size:20px">-</div><div class="w-d" id="wt-sub"></div></div></div>
+    <div class="bar"><i id="wt-bar"></i></div>
+  </section>
+
+  <section class="card c12"><h2>Harvest planner</h2>
+    <div id="hv-view"></div>
+    <div class="hv-form">
+      <select id="hv-crop"></select>
+      <input id="hv-name" placeholder="crop name" hidden>
+      <input id="hv-days" type="number" min="1" placeholder="days to harvest" hidden>
+      <label style="align-self:center;color:var(--mut);font-size:13px">Sown on</label>
+      <input id="hv-date" type="date">
+      <button id="hv-save">Save</button>
+      <button id="hv-done" hidden>Log harvest done</button>
+    </div>
+  </section>
+
+  <section class="card c12"><h2>History</h2>
+    <div class="legend"><span><i style="background:var(--acc)"></i>Soil %</span><span><i style="background:var(--warn)"></i>Tank %</span><span><i style="background:var(--mut)"></i>Start / stop levels</span><span><i style="background:var(--ok);opacity:.4"></i>Pump ON</span></div>
+    <svg id="chart" viewBox="0 0 720 200"></svg>
+  </section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const f=(v,d=0)=>v==null?"–":(+v).toFixed(d);
+const j=async u=>{const r=await fetch(u);if(!r.ok)throw 0;return r.json()};
+const ago=s=>s<90?s+" s":Math.round(s/60)+" min";
+let soilStart=35,soilStop=55;
+
+async function status(){
+  try{
+    const s=await j('/api/status');
+    if(!s.report){return conn(false,'server up, no report yet')}
+    const r=s.report;soilStart=r.soil_start;soilStop=r.soil_stop;
+    $('hero').className='card hero '+(r.pump?'on':'off');
+    $('badge').innerHTML=(r.pump?'PUMP ON':'PUMP OFF')+'<small>'+(r.pump?'switch on by hand':'keep it off')+'</small>';
+    $('reason').textContent=s.reason;
+    $('fw').textContent='Firmware reason: '+r.reason;
+    $('ago').textContent='Last report '+ago(s.age_s)+' ago · cycle every '+r.cycle_s+' s';
+    $('warn').style.display=s.online?'none':'block';
+    $('warn').textContent='⚠ No report for '+ago(s.age_s)+'. The ESP32 may be off or off the network, so values below are stale.';
+    conn(s.online,s.online?'ESP32 online':'ESP32 silent');
+    $('checks').innerHTML=s.checks.map(c=>`<div class="row ${c.ok?'ok':'bad'}"><span class="ic">${c.ok?'✓':'✕'}</span><b>${c.label}</b><span class="now">${c.now}</span><span class="need">needs: ${c.need}</span></div>`).join('');
+    const bad=s.checks.filter(c=>!c.ok),t=$('todo');t.hidden=false;
+    t.innerHTML=r.pump?'<b>Why it should be on</b>Every rule passes: soil is dry, there is water, no rain is expected, and the model agrees.'
+      :'<b>What has to change for the pump to turn ON</b>'+bad.map(c=>`• ${c.label}: now ${c.now}, needs ${c.need}`).join('<br>');
+    $('soil').textContent=f(r.soil);$('soilb').style.width=r.soil+'%';
+    $('tank').textContent=r.tank<0?'err':f(r.tank);$('tankb').style.width=Math.max(0,r.tank)+'%';
+    $('leaf').textContent=f(r.leaf)+(r.leaf_est?' (est.)':'');$('leafb').style.width=r.leaf+'%';
+    $('temp').textContent=f(r.temp,1);$('hum').textContent=f(r.hum);
+    $('light').textContent=r.light+(r.light_est?' (est.)':'');
+    $('wt-txt').textContent=f(r.on_today_min)+' of '+f(r.daily_cap_min)+' min of pump time used today';
+    $('wt-bar').style.width=Math.min(100,r.on_today_min/r.daily_cap_min*100)+'%';
+    $('wt-sub').textContent=r.pump?'Session running: '+f(r.session_min)+' of '+f(r.session_cap_min)+' min (stops at '+f(r.soil_stop)+'% soil)':r.cool_left_min>0?'Cooling down: '+f(r.cool_left_min)+' min until the next watering is allowed':'Ready: no session running, no cooldown';
+  }catch(e){conn(false,'server unreachable')}
+}
+function conn(ok,t){$('dot').className='dot '+(ok?'on':'off');$('connt').textContent=t}
+
+const ICON={Clear:'☀️',Clouds:'☁️',Rain:'🌧️',Drizzle:'🌦️',Thunderstorm:'⛈️',Mist:'🌫️',Haze:'🌫️',Fog:'🌫️',Smoke:'🌫️'};
+async function weather(){
+  try{
+    const w=await j('/api/weather');
+    if(!w.ok){$('weather').textContent='Weather unavailable: '+w.error;return}
+    $('wplace').textContent='· '+(w.place||'')+' ('+w.lat+', '+w.lon+')';
+    $('weather').innerHTML=`<div class="w-top"><div class="w-ic">${ICON[w.main]||'🌡️'}</div><div><div class="w-t">${f(w.temp,1)}°C</div><div class="w-d">${w.desc} · feels ${f(w.feels)}°</div></div></div>
+    <div class="kv"><span>Humidity</span><b>${w.hum}%</b><span>Wind</span><b>${f(w.wind,1)} m/s</b><span>Cloud cover</span><b>${w.clouds}%</b><span>Pressure</span><b>${w.pressure} hPa</b><span>Rain (last hour)</span><b>${w.rain_1h} mm</b><span>Rain chance, next 3 h blocks</span><b>${w.pops.join('% · ')}%</b></div>`;
+  }catch(e){}
+}
+
+async function chart(){
+  try{
+    const h=await j('/api/history?n=200'),s=$('chart');
+    if(h.length<2){s.innerHTML='<text x="360" y="100" text-anchor="middle" fill="var(--mut)">Collecting data…</text>';return}
+    const W=720,H=200,p=28,t0=h[0].t,t1=h[h.length-1].t;
+    const x=t=>p+(t-t0)/((t1-t0)||1)*(W-2*p),y=v=>H-p-Math.min(100,Math.max(0,v))/100*(H-2*p);
+    let o='';
+    [0,50,100].forEach(v=>o+=`<line x1="${p}" x2="${W-p}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="4" y="${y(v)+4}" fill="var(--mut)" font-size="10">${v}</text>`);
+    for(let i=0;i<h.length-1;i++)if(h[i].pump)o+=`<rect x="${x(h[i].t)}" y="${p-8}" width="${Math.max(2,x(h[i+1].t)-x(h[i].t))}" height="${H-2*p+8}" fill="var(--ok)" opacity=".25"/>`;
+    [soilStart,soilStop].forEach(v=>o+=`<line x1="${p}" x2="${W-p}" y1="${y(v)}" y2="${y(v)}" stroke="var(--mut)" stroke-dasharray="4 4"/>`);
+    const path=k=>h.map((d,i)=>(i?'L':'M')+x(d.t).toFixed(1)+' '+y(d[k]).toFixed(1)).join('');
+    o+=`<path d="${path('tank')}" fill="none" stroke="var(--warn)" stroke-width="2"/><path d="${path('soil')}" fill="none" stroke="var(--acc)" stroke-width="2.5"/>`;
+    const tm=t=>new Date(t*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    o+=`<text x="${p}" y="${H-8}" fill="var(--mut)" font-size="10">${tm(t0)}</text><text x="${W-p}" y="${H-8}" text-anchor="end" fill="var(--mut)" font-size="10">${tm(t1)}</text>`;
+    s.innerHTML=o;
+  }catch(e){}
+}
+
+const post=(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
+async function harvestInit(){
+  const c=await j('/api/crops');
+  $('hv-crop').innerHTML=Object.entries(c).map(([k,v])=>`<option value="${k}">${k} (${v[0]}-${v[1]} days)</option>`).join('')+'<option value="__custom">Other crop...</option>';
+  $('hv-date').value=new Date().toISOString().slice(0,10);
+  $('hv-crop').onchange=()=>{const x=$('hv-crop').value==='__custom';$('hv-name').hidden=!x;$('hv-days').hidden=!x};
+  $('hv-save').onclick=async()=>{
+    const custom=$('hv-crop').value==='__custom';
+    const body={crop:custom?$('hv-name').value.trim():$('hv-crop').value,sown:$('hv-date').value,custom_days:custom?+$('hv-days').value:null};
+    if(!body.crop)return alert('Enter the crop name');
+    const r=await post('/api/harvest',body);
+    if(!r.ok)return alert((await r.json()).detail||'Could not save');
+    harvest();
+  };
+  $('hv-done').onclick=async()=>{if(confirm('Log this crop as harvested today? The planner learns from it.')){await post('/api/harvest/done');harvest()}};
+}
+async function harvest(){
+  try{
+    const h=await j('/api/harvest');$('hv-done').hidden=!h.set;
+    if(!h.set){$('hv-view').innerHTML='<div class="w-d">No crop set yet. Pick a crop and the sowing date below.</div>';return}
+    const msg={growing:`Harvest window opens in ${h.days_left} days (${h.ready_from})`,window:`Harvest window is open until ${h.ready_by}`,overdue:`Past the usual window (it ended ${h.ready_by}). Check the crop now.`}[h.stage];
+    $('hv-view').innerHTML=`<div class="w-top"><div class="w-ic">🌾</div><div><div class="w-t">${h.crop}</div><div class="w-d">Day ${h.day} · sown ${h.sown}</div></div></div><div class="bar ${h.stage==='growing'?'':'g'}"><i style="width:${h.pct}%"></i></div><p><b>${msg}</b></p><div class="w-d">Window: day ${h.lo} to ${h.hi} · ${h.source}</div>`;
+  }catch(e){}
+}
+harvestInit().then(harvest);setInterval(harvest,600000);
+status();weather();chart();
+setInterval(status,5000);setInterval(weather,60000);setInterval(chart,10000);
+</script>
+</body>
+</html>

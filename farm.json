@@ -1,0 +1,12 @@
+{
+  "crop": null,
+  "sown": null,
+  "custom_days": null,
+  "log": [
+    {
+      "crop": "Potato",
+      "days": 0,
+      "date": "2026-10-15"
+    }
+  ]
+}
