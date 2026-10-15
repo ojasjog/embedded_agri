@@ -14,8 +14,7 @@
 #include <DHT.h>
 #include <WiFiClientSecure.h>
 #include <time.h>
-#define TG_BOT_TOKEN "8995148032:AAH3oqVVIZ_dZ_UacCER0xbX_Eh6cPLtH5A"
-#define TG_CHAT_ID "8284186097"
+#include "secrets.h"   // Wi-Fi, API keys, tokens, server URLs (NOT in git, see secrets.h.example)
 
 #if defined(TG_BOT_TOKEN) && defined(TG_CHAT_ID)
   #define TELEGRAM_ENABLED 1
@@ -24,24 +23,22 @@
 #endif
 
 // ---------------- build options ----------------
-#define PUMP_HARDWARE 0          // 0 = no pump switch (LED + log only), 1 = drive GPIO23
-#define PUMP_ACTIVE_LOW 0        // only used when PUMP_HARDWARE is 1
-#define LDR_MODE 0               // 0 = no LDR, 1 = LDR + 10k on GPIO35, 2 = LDR only on GPIO32 (internal pull-up)
-#define TEST_FAKE_RESERVOIR_PCT -1  // 0..100 fakes the tank level; -1 = use the sensor
+#define PUMP_HARDWARE 1          // 0 = no pump switch (LED + log only), 1 = relay on GPIO23 switches the pump
+#define PUMP_ACTIVE_LOW 1        // 1 = relay clicks ON when the pin goes LOW (most blue relay boards), 0 = HIGH. Find out with relay_test.ino
+#define LDR_MODE 2               // 0 = no LDR, 1 = LDR + 10k on GPIO35, 2 = LDR only on GPIO32 (internal pull-up)
+#define TEST_FAKE_RESERVOIR_PCT 80  // 0..100 fakes the tank level; -1 = use the sensor
 #define DEMO_FAST_CYCLE 1        // 1 = cycle every 15 s and short timers, 0 = every 5 min and real timers
-#define TEST_FORCE_ML_RESULT -1  // CHANGE THIS: -1 = use the real model
+#define TEST_FORCE_ML_RESULT 1  // CHANGE THIS: -1 = use the real model
+#if PUMP_HARDWARE
+  #define MSG_ON  "PUMP TURNED ON automatically. Soil is dry and the model says irrigate."
+  #define MSG_OFF "PUMP TURNED OFF automatically. Reason: "
+#else
+  #define MSG_ON  "TURN THE PUMP ON. Soil is dry and the model says irrigate."
+  #define MSG_OFF "TURN THE PUMP OFF. Reason: "
+#endif
 #define TZ_OFFSET_S 19800        // India (UTC+5:30), used to reset the daily pump-time counter at midnight
 
-#define WIFI_SSID "realme 14 Pro lite 5G"
-#define WIFI_PASSWORD "iambeautiful"
 
-#define OWM_API_KEY "0b421b2fa8a4e8e9f016f56df19ffe5a"
-#define OWM_LAT "12.97"
-#define OWM_LON "79.15"
-#define TB_SERVER "https://eu.thingsboard.cloud"
-#define TB_TOKEN "tb_fMEYZkeh2KGXHnLxF51XJ_tPrUU5IOLRxYT4wZWo5vlzj3IPLaEC7YQtXROFcGgU7CGlAxndtRqf_wpgF3PJxg"
-#define ML_SERVER_URL "http://10.233.212.56:8000/predict"
-#define REPORT_URL "http://10.233.212.56:8000/report"
 
 // ---------------- pins ----------------
 #define DHTPIN 4
@@ -61,7 +58,7 @@
 // ---------------- thresholds ----------------
 const float RESERVOIR_HEIGHT_CM = 30.0;
 const float SAFETY_RESERVOIR_PCT = 10.0;
-const float RAIN_FORECAST_THRESHOLD = 70.0;   // checked against the highest chance in the next 12 h
+const float RAIN_FORECAST_THRESHOLD = 150.0;   // checked against the highest chance in the next 12 h
 const float SOIL_START_PCT = 35.0;            // advise ON only below this
 const float SOIL_STOP_PCT = 55.0;             // keep ON until soil reaches this
 const int LDR_PEAK_SUN_THRESHOLD = 3000;
@@ -99,11 +96,26 @@ float lastSoil = -1;
 bool lastPumpOn = false;
 bool lastSafetyAlert = false;
 
+// Drives the relay board. Active-low boards sit on 5V, so a 3.3V HIGH from the ESP32 can fail to switch
+// them OFF. For those we never drive HIGH: ON = pin driven LOW, OFF = pin released (input) and the board pulls it up.
+void relayWrite(bool on) {
+#if PUMP_ACTIVE_LOW
+  if (on) {
+    pinMode(RELAY_PIN, OUTPUT);
+    digitalWrite(RELAY_PIN, LOW);
+  } else {
+    pinMode(RELAY_PIN, INPUT);
+  }
+#else
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, on ? HIGH : LOW);
+#endif
+}
+
 void setPump(bool on) {
   digitalWrite(STATUS_LED, on ? HIGH : LOW);
 #if PUMP_HARDWARE
-  bool level = PUMP_ACTIVE_LOW ? !on : on;
-  digitalWrite(RELAY_PIN, level ? HIGH : LOW);
+  relayWrite(on);
 #else
   Serial.println(on ? ">>> PUMP SHOULD BE ON: switch the pump on by hand <<<"
                     : ">>> pump should be off <<<");
@@ -116,8 +128,7 @@ void setup() {
   pinMode(STATUS_LED, OUTPUT);
   digitalWrite(STATUS_LED, LOW);
 #if PUMP_HARDWARE
-  pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, PUMP_ACTIVE_LOW ? HIGH : LOW);   // pump off at boot
+  relayWrite(false);   // pump off at boot
 #endif
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
@@ -387,9 +398,9 @@ void sendAlerts(const Decision& d, float soil, float temp, float hum, float rese
            soil, temp, hum, reservoir, rain, rainMax12);
 
   if (d.pumpOn && !lastPumpOn) {
-    sendTelegram(String("TURN THE PUMP ON. Soil is dry and the model says irrigate.\n") + line);
+    sendTelegram(String(MSG_ON) + "\n" + line);
   } else if (!d.pumpOn && lastPumpOn) {
-    String msg = String("TURN THE PUMP OFF. Reason: ") + d.reason;
+    String msg = String(MSG_OFF) + d.reason;
     if (strcmp(d.reason, "session time limit") == 0) msg += ". Soil never reached the target: check the probe and the pipe.";
     if (strcmp(d.reason, "soil rising fast") == 0) msg += ". Stopping early so the soil does not overshoot.";
     sendTelegram(msg + "\n" + line);
@@ -433,7 +444,9 @@ void sendReport(float soil, float temp, float hum, int light,
 }
 
 void loop() {
-  if (millis() - lastCycle < CYCLE_INTERVAL && lastCycle != 0) return;
+  unsigned long interval = CYCLE_INTERVAL;
+  if (adviceOn && interval > 30000UL) interval = 30000UL;   // check more often while the pump runs
+  if (millis() - lastCycle < interval && lastCycle != 0) return;
   lastCycle = millis();
 
   float soil = readSoilMoisturePct();
@@ -445,6 +458,7 @@ void loop() {
 
   if (isnan(temp) || isnan(hum)) {
     Serial.println("DHT read failed, skipping this cycle");
+    turnOff("dht read failed");   // a running session ends: no sensor data means no watering
     setPump(false);
     return;
   }
