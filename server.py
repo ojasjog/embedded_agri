@@ -23,6 +23,7 @@ import xgboost as xgb
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
+from ripeness_api import router as ripeness_router
 
 BASE = Path(__file__).parent
 MODEL_PATH = BASE / "irrigation_model.json"
@@ -33,6 +34,7 @@ OWM_LAT = os.getenv("OWM_LAT", "12.97")
 OWM_LON = os.getenv("OWM_LON", "79.15")
 
 app = FastAPI(title="Irrigation ML Server")
+app.include_router(ripeness_router)
 model = xgb.XGBClassifier()
 model.load_model(str(MODEL_PATH))
 
